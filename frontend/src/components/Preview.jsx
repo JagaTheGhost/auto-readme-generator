@@ -1,69 +1,136 @@
-import { useEffect, useState } from 'react'
+import React, { useRef } from 'react'
+import Editor from 'react-simple-code-editor'
+import Prism from 'prismjs'
+import 'prismjs/components/prism-markdown'
+import 'prismjs/themes/prism-tomorrow.css' // Switched to tomorrow to remove twilight borders
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import remarkBreaks from 'remark-breaks' // Allows single-enter newlines in markdown
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import EditorToolbar from './EditorToolbar'
 
-export default function Preview({ markdown }) {
-  const [renderedHtml, setRenderedHtml] = useState('')
+export default function Preview({ markdown, onMarkdownChange }) {
+  const safeMarkdown = markdown || ''
 
-  useEffect(() => {
-    // Simple markdown to HTML conversion
-    let html = markdown
-      // Headers
-      .replace(/^### (.*?)$/gm, '<h3>$1</h3>')
-      .replace(/^## (.*?)$/gm, '<h2>$1</h2>')
-      .replace(/^# (.*?)$/gm, '<h1>$1</h1>')
-      // Bold
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      // Italic
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      // Lists
-      .replace(/^\- (.*?)$/gm, '<li>$1</li>')
-      .replace(/(<li>.*?<\/li>)/s, '<ul>$1</ul>')
-      // Code blocks
-      .replace(/```[\s\S]*?```/g, (match) => {
-        const code = match.replace(/```/g, '')
-        return `<pre><code>${escapeHtml(code)}</code></pre>`
-      })
-      // Inline code
-      .replace(/`(.*?)`/g, '<code>$1</code>')
-      // Line breaks
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br>')
-      .split('</p><p>')
-      .map((line) => {
-        if (line.includes('<')) return line
-        return `<p>${line}</p>`
-      })
-      .join('')
+  const editorRef = useRef(null)
+  const scrollContainerRef = useRef(null)
+  const previewRef = useRef(null)
 
-    setRenderedHtml(html)
-  }, [markdown])
+  // Flag to prevent infinite scroll loops
+  let isSyncingLeft = false;
+  let isSyncingRight = false;
 
-  function escapeHtml(text) {
-    const map = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#039;',
+  const handleEditorScroll = (e) => {
+    if (isSyncingLeft) {
+      isSyncingLeft = false;
+      return;
     }
-    return text.replace(/[&<>"']/g, (m) => map[m])
-  }
+    if (!previewRef.current) return;
+
+    const editor = e.target;
+    const preview = previewRef.current;
+
+    // Calculate scroll percentage (0 to 1)
+    const scrollPercentage = editor.scrollTop / (editor.scrollHeight - editor.clientHeight);
+
+    // Apply percentage to preview pane
+    isSyncingRight = true;
+    preview.scrollTop = scrollPercentage * (preview.scrollHeight - preview.clientHeight);
+  };
+
+  const handlePreviewScroll = (e) => {
+    if (isSyncingRight) {
+      isSyncingRight = false;
+      return;
+    }
+    if (!editorRef.current) return;
+
+    const preview = e.target;
+    const editor = editorRef.current;
+
+    // Calculate scroll percentage (0 to 1)
+    const scrollPercentage = preview.scrollTop / (preview.scrollHeight - preview.clientHeight);
+
+    // Apply percentage to editor pane
+    isSyncingLeft = true;
+    editor.scrollTop = scrollPercentage * (editor.scrollHeight - editor.clientHeight);
+  };
 
   return (
     <section className="preview-section">
+      <div className="preview-header">
+        <span className="preview-title">Markdown Editor</span>
+        <span className="preview-title">Live Preview</span>
+      </div>
       <div className="preview-container">
-        <div className="preview-raw">
-          <h3>Raw Markdown</h3>
-          <pre className="markdown-code">
-            <code>{markdown}</code>
-          </pre>
+        {/* INTERACTIVE RAW MARKDOWN EDITOR */}
+        <div className="preview-raw-container">
+          <EditorToolbar
+            markdown={safeMarkdown}
+            setMarkdown={onMarkdownChange}
+            textareaRef={editorRef}
+          />
+          <div
+            className="preview-raw"
+            ref={scrollContainerRef}
+            onScroll={handleEditorScroll}
+          >
+            <Editor
+              ref={editorRef}
+              value={safeMarkdown}
+              onValueChange={onMarkdownChange}
+              highlight={(code) => {
+                if (Prism.languages.markdown) {
+                  return Prism.highlight(code || '', Prism.languages.markdown, 'markdown');
+                }
+                return code || '';
+              }}
+              padding={24}
+              className="editor-textarea-highlighted"
+              style={{
+                fontFamily: 'ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace',
+                fontSize: 14,
+                backgroundColor: 'transparent',
+                minHeight: '100%',
+                width: '100%'
+              }}
+            />
+          </div>
         </div>
 
-        <div className="preview-rendered">
-          <h3>Preview</h3>
-          <div
-            className="markdown-preview"
-            dangerouslySetInnerHTML={{ __html: renderedHtml }}
-          />
+        {/* RENDERED HTML PREVIEW */}
+        <div
+          className="preview-rendered"
+          ref={previewRef}
+          onScroll={handlePreviewScroll}
+        >
+          <div className="markdown-preview">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkBreaks]}
+              components={{
+                code({ node, inline, className, children, ...props }) {
+                  const match = /language-(\w+)/.exec(className || '')
+                  return !inline && match ? (
+                    <SyntaxHighlighter
+                      style={vscDarkPlus}
+                      language={match[1]}
+                      PreTag="div"
+                      {...props}
+                    >
+                      {String(children).replace(/\n$/, '')}
+                    </SyntaxHighlighter>
+                  ) : (
+                    <code className={className} {...props}>
+                      {children}
+                    </code>
+                  )
+                }
+              }}
+            >
+              {safeMarkdown}
+            </ReactMarkdown>
+          </div>
         </div>
       </div>
     </section>

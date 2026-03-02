@@ -57,7 +57,9 @@ const TECH_STACK_OPTIONS = [
   { id: 'rest', label: 'REST API', category: 'Tools' },
 ]
 
-export default function Input({ onGenerate, loading }) {
+import SectionOrder from './SectionOrder'
+
+export default function Input({ onGenerate, loading, generateSuite, setGenerateSuite, theme, setTheme, sectionOrder, setSectionOrder }) {
   const [repoUrl, setRepoUrl] = useState('')
   const [description, setDescription] = useState('')
   const [selectedTechs, setSelectedTechs] = useState([])
@@ -205,22 +207,71 @@ export default function Input({ onGenerate, loading }) {
           <small>Select from predefined options or add your own technologies</small>
         </div>
 
+        {/* Theme Selector */}
+        <div className="form-group">
+          <label htmlFor="theme-select">Readme Theme</label>
+          <select
+            id="theme-select"
+            value={theme}
+            onChange={(e) => setTheme(e.target.value)}
+            disabled={loading}
+            style={{
+              padding: '0.875rem 1rem',
+              border: '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-sm)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.95rem',
+              backgroundColor: 'var(--bg-input)',
+              color: 'var(--text-primary)',
+              width: '100%'
+            }}
+          >
+            <option value="default">Default (Professional & Detailed)</option>
+            <option value="minimalist">Minimalist (Clean & Straightforward)</option>
+            <option value="hacker">Hacker (Terminal/ASCII Aesthetic)</option>
+          </select>
+        </div>
+
+        {/* Section Order Drag & Drop */}
+        <SectionOrder
+          sectionOrder={sectionOrder}
+          setSectionOrder={setSectionOrder}
+          disabled={loading}
+        />
+
+        {/* Doc Pack Toggle */}
+        <div className="form-group doc-pack-toggle">
+          <label className="checkbox-label" style={{ padding: '1rem', background: 'var(--bg-input)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <input
+              type="checkbox"
+              checked={generateSuite}
+              onChange={(e) => setGenerateSuite(e.target.checked)}
+              disabled={loading}
+              style={{ width: '24px', height: '24px' }}
+            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <span style={{ fontWeight: '600', fontSize: '1rem', color: 'var(--text-accent)' }}>Enable "Doc Pack" (Multi-File)</span>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Generates README.md, CONTRIBUTING.md, and LICENSE</span>
+            </div>
+          </label>
+        </div>
+
         {/* Submit Button */}
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading ? 'Generating...' : '✨ Generate README'}
+        <button type="submit" className="btn btn-primary" disabled={loading} style={{ marginTop: '1rem' }}>
+          {loading ? 'Generating...' : '✨ Generate Documentation'}
         </button>
       </form>
 
       {/* Info Box */}
       <div className="info-box">
         <p>
-            <strong>Important NOTE: </strong> <br />
-            <strong>./</strong> Using this tool is used to generate a <strong>skeleton README file</strong>, so that you does not have to start from scratch. <br/>
-            <strong>./</strong> It is not meant to be a complete README generator, and may not include all the sections you need. You can always edit the generated README to add more details, sections, or customize it to your liking.<br />
-            <strong>./</strong> The generated README is a starting point. Always review and customize it to ensure it accurately represents your project and includes all necessary information.<br/>
+          <strong>Important NOTE: </strong> <br />
+          <strong>./</strong> Using this tool is used to generate a <strong>skeleton README file</strong>, so that you does not have to start from scratch. <br />
+          <strong>./</strong> It is not meant to be a complete README generator, and may not include all the sections you need. You can always edit the generated README to add more details, sections, or customize it to your liking.<br />
+          <strong>./</strong> The generated README is a starting point. Always review and customize it to ensure it accurately represents your project and includes all necessary information.<br />
         </p>
         <p>
-            <br/>
+          <br />
           <strong>Tip:</strong> Provide either a GitHub URL or a description (or both!) and
           we'll generate a professional README for you.
         </p>
