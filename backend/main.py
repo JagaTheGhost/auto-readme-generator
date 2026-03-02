@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 import re
 
-from prompts import README_TEMPLATE, build_readme_from_inputs
+from prompts import build_readme_from_inputs
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -32,12 +32,16 @@ class ReadmeRequest(BaseModel):
     repo_url: Optional[str] = None
     description: Optional[str] = None
     tech_stack: Optional[List[str]] = None
+    generate_suite: Optional[bool] = False
+    theme: Optional[str] = "default"
+    section_order: Optional[List[str]] = None
 
 
 # Response schema
 class ReadmeResponse(BaseModel):
     markdown: str
     metadata: dict
+    additional_files: Optional[dict] = None
 
 
 def validate_inputs(req: ReadmeRequest) -> bool:
@@ -111,25 +115,19 @@ def generate_readme(req: ReadmeRequest):
         readme_data = build_readme_from_inputs(
             repo_url=req.repo_url,
             description=req.description,
-            tech_stack_items=req.tech_stack or []
+            tech_stack_items=req.tech_stack or [],
+            theme=req.theme or "default",
+            section_order=req.section_order or None
         )
         
-        # Format the README using template
-        markdown = README_TEMPLATE.format(
-            project_name=readme_data["project_name"],
-            description=readme_data["description"],
-            features=readme_data["features"],
-            tech_stack=readme_data["tech_stack"],
-            clone_url=readme_data["clone_url"],
-            project_name_slug=readme_data["project_name_slug"],
-            installation_steps=readme_data["installation_steps"],
-            usage_instructions=readme_data["usage_instructions"],
-            detailed_usage=readme_data["detailed_usage"],
-            architecture=readme_data["architecture"],
-            deployment_guide=readme_data["deployment_guide"],
-            badges=readme_data["badges"],
-            prerequisites=readme_data["prerequisites"],
-        )
+        # With dynamic section ordering, the formatting is pre-done in prompts.py
+        markdown = readme_data.get("dynamic_markdown", "Error generating dynamic markdown")
+        
+        additional_files = {}
+        if req.generate_suite:
+            from prompts import generate_contributing, generate_license
+            additional_files["CONTRIBUTING.md"] = generate_contributing(readme_data["project_name"])
+            additional_files["LICENSE"] = generate_license()
         
         return ReadmeResponse(
             markdown=markdown,
@@ -137,7 +135,8 @@ def generate_readme(req: ReadmeRequest):
                 "project_name": readme_data["project_name"],
                 "tech_stack": readme_data["tech_stack"],
                 "generated": True,
-            }
+            },
+            additional_files=additional_files
         )
     
     except Exception as e:

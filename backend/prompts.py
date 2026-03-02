@@ -2,7 +2,9 @@
 Prompt templates for README generation
 """
 
-README_TEMPLATE = """# {project_name}
+# Templates for different themes
+THEMES = {
+    "default": """# {project_name}
 
 {description}
 
@@ -124,13 +126,80 @@ For questions or feedback, please open an issue or reach out on GitHub.
 
 Made with ❤️ by the development team
 
-</div>"""
+</div>""",
+
+    "minimalist": """# {project_name}
+
+> {description}
+
+{badges}
+
+{features}
+
+## Tech Stack
+{tech_stack}
+
+## Setup & Running
+```bash
+git clone {clone_url}
+cd {project_name_slug}
+{installation_steps}
+{usage_instructions}
+```
+
+## Architecture
+{architecture}
+
+## Deployment
+{deployment_guide}
+
+## License
+MIT License
+""",
+
+    "hacker": """███╗   ███╗██╗███╗   ██╗██╗███╗   ███╗ █████╗ ██╗
+████╗ ████║██║████╗  ██║██║████╗ ████║██╔══██╗██║
+██╔████╔██║██║██╔██╗ ██║██║██╔████╔██║███████║██║
+██║╚██╔╝██║██║██║╚██╗██║██║██║╚██╔╝██║██╔══██║██║
+██║ ╚═╝ ██║██║██║ ╚████║██║██║ ╚═╝ ██║██║  ██║███████╗
+╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝
+                            
+> {project_name}
+> {description}
+
+## [0x01] FEATURES
+{features}
+
+## [0x02] STACK
+{tech_stack}
+
+## [0x03] EXECUTION
+```bash
+$ git clone {clone_url}
+$ cd {project_name_slug}
+$ {installation_steps}
+$ {usage_instructions}
+```
+
+## [0x04] ARCHITECTURE
+{architecture}
+
+## [0x05] SECURE DEPLOYMENT
+{deployment_guide}
+
+## [0x00] EOF
+{badges}
+"""
+}
+
 
 
 def build_readme_from_inputs(
     repo_url: str = None,
     description: str = None,
     tech_stack_items: list = None,
+    theme: str = "default",
+    section_order: list = None,
 ) -> dict:
     """
     Build a README from user inputs and infer missing information.
@@ -162,32 +231,82 @@ def build_readme_from_inputs(
     if description:
         short_description = description[:300]
     
-    # Build all components
-    features = _infer_features(repo_url, description, tech_stack_items)
-    tech_stack = _infer_tech_stack(tech_stack_items)
-    installation_steps = _infer_installation(tech_stack_items)
-    usage_instructions = _infer_usage(tech_stack_items)
-    detailed_usage = _infer_detailed_usage(tech_stack_items)
-    architecture = _infer_architecture(tech_stack_items)
-    deployment_guide = _infer_deployment(tech_stack_items)
-    badges = _build_badges(project_name_slug)
-    prerequisites = _infer_prerequisites(tech_stack_items)
+    features_text = _infer_features(repo_url, description, tech_stack_items)
+    tech_stack_text = _infer_tech_stack(tech_stack_items)
+    installation_steps_text = _infer_installation(tech_stack_items)
+    usage_instructions_text = _infer_usage(tech_stack_items)
+    detailed_usage_text = _infer_detailed_usage(tech_stack_items)
+    architecture_text = _infer_architecture(tech_stack_items)
+    deployment_guide_text = _infer_deployment(tech_stack_items)
+    badges_text = _build_badges(project_name_slug)
+    prerequisites_text = _infer_prerequisites(tech_stack_items)
     
-    return {
+    # Store plain data for returning
+    response_data = {
         "project_name": project_name,
         "project_name_slug": project_name_slug,
         "description": short_description,
-        "features": features,
-        "tech_stack": tech_stack,
+        "features": features_text,
+        "tech_stack": tech_stack_text,
         "clone_url": clone_url,
-        "installation_steps": installation_steps,
-        "usage_instructions": usage_instructions,
-        "detailed_usage": detailed_usage,
-        "architecture": architecture,
-        "deployment_guide": deployment_guide,
-        "badges": badges,
-        "prerequisites": prerequisites,
+        "installation_steps": installation_steps_text,
+        "usage_instructions": usage_instructions_text,
+        "detailed_usage": detailed_usage_text,
+        "architecture": architecture_text,
+        "deployment_guide": deployment_guide_text,
+        "badges": badges_text,
+        "prerequisites": prerequisites_text,
     }
+
+    # Build dynamic sections
+    if not section_order:
+        section_order = ["features", "tech_stack", "installation", "usage", "architecture", "deployment", "contributing"]
+
+    dynamic_content = []
+    
+    # Always start with title/desc
+    if theme == "hacker":
+        dynamic_content.append(f"███╗   ███╗██╗███╗   ██╗██╗███╗   ███╗ █████╗ ██╗\n████╗ ████║██║████╗  ██║██║████╗ ████║██╔══██╗██║\n██╔████╔██║██║██╔██╗ ██║██║██╔████╔██║███████║██║\n██║╚██╔╝██║██║██║╚██╗██║██║██║╚██╔╝██║██╔══██║██║\n██║ ╚═╝ ██║██║██║ ╚████║██║██║ ╚═╝ ██║██║  ██║███████╗\n╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝\n                            \n> {project_name}\n> {short_description}")
+    elif theme == "minimalist":
+        dynamic_content.append(f"# {project_name}\n\n> {short_description}\n\n{badges_text}")
+    else:
+        dynamic_content.append(f"# {project_name}\n\n{short_description}")
+
+    # Build sections in order
+    for section in section_order:
+        if section == "features":
+            if theme == "hacker": dynamic_content.append(f"## [0x01] FEATURES\n{features_text}")
+            elif theme == "minimalist": dynamic_content.append(f"## Features\n{features_text}")
+            else: dynamic_content.append(f"## ✨ Features\n\n{features_text}")
+        elif section == "tech_stack":
+            if theme == "hacker": dynamic_content.append(f"## [0x02] STACK\n{tech_stack_text}")
+            elif theme == "minimalist": dynamic_content.append(f"## Tech Stack\n{tech_stack_text}")
+            else: dynamic_content.append(f"## 📚 Tech Stack\n\n{tech_stack_text}")
+        elif section == "installation":
+            if theme == "hacker": dynamic_content.append(f"## [0x03] EXECUTION\n```bash\n$ git clone {clone_url}\n$ cd {project_name_slug}\n$ {installation_steps_text}\n```")
+            elif theme == "minimalist": dynamic_content.append(f"## Setup\n```bash\ngit clone {clone_url}\ncd {project_name_slug}\n{installation_steps_text}\n```")
+            else: dynamic_content.append(f"## 🚀 Getting Started\n\n### Prerequisites\n\n{prerequisites_text}\n\n### Installation\n\n```bash\n# Clone the repository\ngit clone {clone_url}\ncd {project_name_slug}\n\n# Install dependencies\n{installation_steps_text}\n```")
+        elif section == "usage":
+            if theme == "hacker": dynamic_content.append(f"## [0x04] USAGE\n```bash\n$ {usage_instructions_text}\n```")
+            elif theme == "minimalist": dynamic_content.append(f"## Usage\n```bash\n{usage_instructions_text}\n```")
+            else: dynamic_content.append(f"## 📖 Usage\n\n```bash\n{usage_instructions_text}\n```\n\n{detailed_usage_text}")
+        elif section == "architecture":
+            if theme == "hacker": dynamic_content.append(f"## [0x05] ARCHITECTURE\n{architecture_text}")
+            elif theme == "minimalist": dynamic_content.append(f"## Architecture\n{architecture_text}")
+            else: dynamic_content.append(f"## 📁 Project Architecture\n\n{architecture_text}")
+        elif section == "deployment":
+            if theme == "hacker": dynamic_content.append(f"## [0x06] SECURE DEPLOYMENT\n{deployment_guide_text}")
+            elif theme == "minimalist": dynamic_content.append(f"## Deployment\n{deployment_guide_text}")
+            else: dynamic_content.append(f"## 🚀 Deployment\n\n{deployment_guide_text}")
+        elif section == "contributing":
+            if theme == "hacker": dynamic_content.append(f"## [0x00] EOF\n{badges_text}")
+            elif theme == "minimalist": dynamic_content.append(f"## License\nMIT License")
+            else: dynamic_content.append(f"## 📝 Contributing\n\n1. Fork the repository\n2. Create your feature branch (`git checkout -b feature/amazing-feature`)\n3. Commit your changes (`git commit -m 'Add some amazing feature'`)\n4. Push to the branch (`git push origin feature/amazing-feature`)\n5. Open a Pull Request\n\n## 📄 License\n\nThis project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.\n\n---\n\n<div align=\"center\">\n\n{badges_text}\n\nMade with ❤️ by the development team\n\n</div>")
+
+    # Combine all parts
+    response_data["dynamic_markdown"] = "\n\n".join(dynamic_content)
+    
+    return response_data
 
 
 def _infer_features(repo_url: str, description: str, tech_stack_items: list) -> str:
@@ -453,3 +572,63 @@ def _infer_prerequisites(tech_stack_items: list) -> str:
         prerequisites = ["Node.js 16.0+", "Python 3.8+", "Git 2.0+"]
     
     return " | ".join(prerequisites)
+
+def generate_contributing(project_name: str) -> str:
+    """Generate a boilerplate CONTRIBUTING.md file."""
+    return f"""# Contributing to {project_name}
+
+First off, thanks for taking the time to contribute! ❤️
+
+All types of contributions are encouraged and valued. See the Table of Contents for different ways to help and details about how this project handles them. Please make sure to read the relevant section before making your contribution.
+
+## Code of Conduct
+
+This project and everyone participating in it is governed by a Code of Conduct. By participating, you are expected to uphold this code.
+
+## How to Contribute
+
+### Reporting Bugs
+- **Ensure the bug was not already reported** by searching on GitHub under Issues.
+- If you're unable to find an open issue addressing the problem, open a new one. Be sure to include a title and clear description, as much relevant information as possible, and a code sample or an executable test case demonstrating the expected behavior that is not occurring.
+
+### Suggesting Enhancements
+- Open a new issue with the label `enhancement`.
+- Provide a clear and detailed explanation of the feature you want and why it's important.
+
+### Pull Requests
+1. Fork the repo and create your branch from `main`.
+2. If you've added code that should be tested, add tests.
+3. Ensure the test suite passes.
+4. Make sure your code lints.
+5. Issue that pull request!
+
+## Developer Setup
+Please see the `README.md` file for instructions on how to set up the development environment.
+"""
+
+def generate_license() -> str:
+    """Generate a boilerplate MIT LICENSE file."""
+    import datetime
+    year = datetime.datetime.now().year
+    return f"""MIT License
+
+Copyright (c) {year}
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
