@@ -19,4 +19,4 @@ services:
     rootDir: frontend
     envVars:
       - key: VITE_API_URL
-        value: https://${auto-readme-backend.host}
+        value: https://auto-readme-backend.onrender.com
