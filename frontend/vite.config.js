@@ -10,7 +10,18 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '')
+      }
+    }
+  },
+  build: {
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          markdown: ['react-markdown', 'remark-gfm', 'remark-breaks', 'rehype-raw'],
+          syntax: ['react-syntax-highlighter', 'prismjs'],
+        }
       }
     }
   }

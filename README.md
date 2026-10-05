@@ -1,311 +1,133 @@
-# Auto README Generator
+# 🚀 README Studio
 
-> **Generate professional README.md files automatically in seconds** 🚀
+> **Next-generation AI documentation IDE: Generate production-ready README.md files and documentation suites automatically in seconds**
 
-A simple, powerful, and free web application that creates production-ready README documentation from a GitHub repository URL or project description.
+A modern full-stack developer IDE that crafts professional documentation suites, interactive diagrams, and live Markdown previews from a GitHub repository or project description.
+
+[![Version](https://img.shields.io/badge/version-1.0.0-6366f1.svg?style=for-the-badge)](#)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-18.2+-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
+
+---
 
 ## ✨ Features
 
-- 🔗 **GitHub Integration** - Paste a repo URL or describe your project
-- 🧠 **Smart Inference** - Auto-detects tech stack and project features
-- 👀 **Live Preview** - See rendered markdown as you generate
-- 📋 **One-Click Export** - Copy to clipboard or download as file
-- 📱 **Fully Responsive** - Works on desktop, tablet, and mobile
-- ⚡ **Lightning Fast** - Zero database, instant generation
-- 🎯 **Production-Ready** - Clean, professional output every time
+- 🔗 **Deep GitHub Inspection** - Auto-detects languages, topics, dependencies (`package.json`, `requirements.txt`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Dockerfile`), and generates real ASCII directory trees via GitHub's Git Trees API.
+- ⚡ **Quick Presets** - 1-click presets for Full-Stack SaaS, Python CLI / Libraries, React Component Libraries, and REST APIs.
+- 🎨 **Multi-Theme Engine** - Choose between **Default** (detailed & polished), **Minimalist** (clean & straightforward), or **Hacker** (terminal & ASCII art aesthetic).
+- 🔀 **Dynamic Section Reordering** - Drag-and-drop or toggle 11 distinct sections: Features, Tech Stack, Directory Tree, Installation, Usage, Config (`.env`), Architecture, Testing, Troubleshooting, Deployment, and Contributing.
+- 🌓 **Adaptive View Modes** - Seamlessly toggle between `📝 Code Only`, `🌓 Split View`, and `👁️ Preview Only`.
+- 🛠️ **Rich Markdown Editor** - Formatting toolbar with bold, italic, headings, quotes, code blocks, links, images, tables, task lists, and live document statistics (words, chars, reading time).
+- 📦 **Doc Pack Generator** - Generates complete multi-file documentation suites (`README.md`, `CONTRIBUTING.md`, `LICENSE`) exported as `.zip` or standalone `.html`.
+- 💾 **Local Auto-Save** - Automatically persists drafts in `localStorage` so your work is never lost.
+- 🚀 **Full-Stack Vercel Deployment** - Pre-configured serverless Python backend + React frontend ready to deploy with one click.
 
-## 🎯 What It Does
+---
 
-### Input
+## 🏗️ Project Architecture
 
-Choose **one or both**:
-1. Paste a GitHub repository URL
-2. Describe your project in plain text
-3. (Optional) Select your tech stack
+```
+auto-readme-generator/
+├── api/
+│   └── index.py            # Vercel serverless function entry point
+├── backend/
+│   ├── app.py              # FastAPI application & REST endpoints
+│   ├── prompts.py          # Multi-language inference & template engine
+│   ├── requirements.txt    # Python dependencies
+│   ├── tests/
+│   │   └── test_api.py     # Pytest test suite
+│   └── Dockerfile          # Backend container image
+├── frontend/
+│   ├── src/
+│   │   ├── components/     # React components (Input, Preview, SectionOrder, etc.)
+│   │   ├── App.jsx         # Dashboard state & orchestration
+│   │   └── index.css       # Design system & responsive styles
+│   ├── vite.config.js      # Optimized Rollup chunking & dev proxy
+│   ├── package.json        # Frontend dependencies
+│   └── Dockerfile          # Frontend container image
+├── .github/
+│   └── workflows/ci.yml    # Automated CI pipeline
+├── vercel.json             # Vercel deployment configuration
+├── docker-compose.yml      # Multi-container orchestration
+└── README.md               # Documentation
+```
 
-### Output
-
-Get a complete README.md with:
-- Project title and description
-- Feature highlights
-- Tech stack breakdown
-- Installation instructions
-- Usage guide
-- Badges and license
-- Screenshot section
-- Plus more...
+---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- **Node.js** 16+ and npm
-- **Python** 3.8+
+- **Node.js** 18+ and **npm** 9+
+- **Python** 3.9+
 
-### 1. Backend Setup
+### 1. Local Development
 
+**Start Backend (Terminal 1):**
 ```bash
 cd backend
-
-# Create virtual environment (optional)
 python -m venv venv
-venv\Scripts\activate  # Windows
-# or: source venv/bin/activate  # macOS/Linux
+venv\Scripts\activate       # Windows PowerShell
+# source venv/bin/activate  # macOS / Linux
 
-# Install dependencies
 pip install -r requirements.txt
+uvicorn app:app --reload --port 8000
 ```
 
-### 2. Frontend Setup
-
+**Start Frontend (Terminal 2):**
 ```bash
 cd frontend
 npm install
-```
-
-### 3. Run the Application
-
-**Terminal 1 - Start Backend:**
-```bash
-cd backend
-python main.py
-```
-
-You should see:
-```
-INFO:     Uvicorn running on http://0.0.0.0:8000
-```
-
-**Terminal 2 - Start Frontend:**
-```bash
-cd frontend
 npm run dev
 ```
 
-You should see:
-```
-➜  Local:   http://localhost:3000/
-```
-
-### 4. Open in Browser
-
-Navigate to **http://localhost:3000** and start generating READMEs!
-
-## 📊 Architecture
-
-```
-┌─────────────────────────────────────┐
-│  React Frontend (Vite)              │
-│  - Input Component                  │
-│  - Markdown Preview                 │
-│  - Export Buttons                   │
-└────────────────┬────────────────────┘
-                 │ API Calls
-                 ↓
-┌─────────────────────────────────────┐
-│  FastAPI Backend                    │
-│  - Input Validation                 │
-│  - Smart Inference                  │
-│  - Markdown Generation              │
-└─────────────────────────────────────┘
-```
-
-## 📚 Project Structure
-
-```
-auto-readme-generator/
-├── frontend/              # React app (Vite)
-│   ├── src/
-│   │   ├── components/    # Reusable React components
-│   │   ├── App.jsx        # Main app
-│   │   └── index.css      # Styling
-│   ├── package.json
-│   └── vite.config.js
-│
-├── backend/               # FastAPI application
-│   ├── main.py            # API endpoints
-│   ├── prompts.py         # README generation logic
-│   └── requirements.txt
-│
-└── DOCUMENTATION.md       # Full documentation
-```
-
-## 🔌 API Reference
-
-### Generate README
-
-**Endpoint:** `POST /generate-readme`
-
-**Request:**
-```json
-{
-  "repo_url": "https://github.com/username/project",
-  "description": "My project description",
-  "tech_stack": ["React", "FastAPI", "MongoDB"]
-}
-```
-
-**Response:**
-```json
-{
-  "markdown": "# Project Name\n\n...",
-  "metadata": {
-    "project_name": "Project Name",
-    "tech_stack": "React | FastAPI | MongoDB",
-    "generated": true
-  }
-}
-```
-
-**Swagger UI:** http://localhost:8000/docs
-
-## 💡 Example Workflow
-
-1. **Visit** http://localhost:3000
-2. **Enter** GitHub URL: `https://github.com/facebook/react`
-3. **Select** tech stack: React, JavaScript, Node
-4. **Click** "Generate README"
-5. **See** professional markdown in real-time
-6. **Copy** to clipboard or **Download** file
-
-## 🎨 Tech Stack
-
-| Component | Technology | Why |
-|-----------|-----------|-----|
-| Frontend | React 18 + Vite | Fast, modern, minimal config |
-| Styling | CSS3 | Full control, no dependencies |
-| Backend | FastAPI | Modern, fast, great docs |
-| HTTP | Axios | Simple, promise-based |
-| Python | 3.8+ | Powerful, easy to read |
-
-## 📁 Generated README Includes
-
-✅ Project Title  
-✅ One-line Description  
-✅ 3-5 Feature Highlights  
-✅ Tech Stack (Frontend/Backend/Database)  
-✅ Installation Steps  
-✅ Usage Instructions  
-✅ Screenshot Section  
-✅ Build/License/Version Badges  
-✅ MIT License  
-
-## 🧪 Testing the API
-
-### Using curl
-
-```bash
-curl -X POST http://localhost:8000/generate-readme \
-  -H "Content-Type: application/json" \
-  -d '{
-    "repo_url": "https://github.com/torvalds/linux",
-    "description": "The Linux kernel",
-    "tech_stack": ["C", "Linux"]
-  }'
-```
-
-### Health Check
-
-```bash
-curl http://localhost:8000/health
-```
-
-## 🚀 Production Build
-
-### Build Frontend
-
-```bash
-cd frontend
-npm run build
-```
-
-Output is in `frontend/dist/` - ready to deploy!
-
-### Deploy to Vercel
-
-```bash
-npm run build
-vercel deploy
-```
-
-### Deploy Backend to Heroku
-
-```bash
-heroku create your-app-name
-git push heroku main
-```
-
-## 🔒 Security & Privacy
-
-✅ No database - nothing is stored  
-✅ No login required  
-✅ No API keys needed  
-✅ All processing is local  
-✅ Input validation on both sides  
-✅ CORS configured for development  
-
-## 📝 Future Features (v1.1+)
-
-- 🤖 AI-powered descriptions (OpenAI API)
-- 🔗 Direct GitHub API integration
-- 📋 Custom template selection
-- 🎨 Markdown editor in UI
-- 🎯 Project type detection
-- 🌐 Collaborative editing
-- 📊 Usage analytics
-
-See [DOCUMENTATION.md](DOCUMENTATION.md) for complete roadmap.
-
-## 🐛 Troubleshooting
-
-### Backend won't start
-
-```bash
-python --version  # Check Python 3.8+
-pip install -r requirements.txt
-python main.py
-```
-
-### Frontend won't connect
-
-- Ensure backend is running on port 8000
-- Check CORS is enabled in backend
-- Clear browser cache
-
-### Port already in use
-
-```bash
-# Change Vite port in vite.config.js
-# or kill process on port 3000/8000
-```
-
-## 💬 Support
-
-Need help? Check:
-1. [Full Documentation](DOCUMENTATION.md)
-2. Backend API docs: http://localhost:8000/docs
-3. Frontend components in `src/components/`
-
-## 📄 License
-
-MIT License - Free to use, modify, and distribute.
-
-## 🙏 Credits
-
-Built with:
-- React 18
-- FastAPI
-- Vite
-- Axios
-- Pure CSS3
+Visit **http://localhost:3000** in your browser.
 
 ---
 
-**Ready to generate some READMEs?** 🎉
+### 2. Docker Compose (One-Command Run)
 
 ```bash
-npm run dev  # Frontend
-python main.py  # Backend
+docker compose up -d --build
+```
+- Frontend: `http://localhost:3000`
+- Backend API Docs: `http://localhost:8000/docs`
+
+---
+
+## 🧪 Testing
+
+Run backend unit and integration tests:
+
+```bash
+python -m pytest backend/tests/test_api.py -v
 ```
 
-Then visit http://localhost:3000
+Run frontend production build verification:
+
+```bash
+cd frontend && npm run build
+```
+
+---
+
+## 🌐 Deploy to Vercel
+
+This repository is ready for full-stack deployment on Vercel:
+
+1. Push your repository to GitHub.
+2. Import it on [Vercel](https://vercel.com/new).
+3. Vercel automatically detects `vercel.json` and deploys both the Vite frontend and the Python serverless function!
+
+Alternatively, deploy using the Vercel CLI:
+```bash
+npm i -g vercel
+vercel --prod
+```
+
+---
+
+## 📄 License
+
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.

@@ -1,27 +1,28 @@
 """
-Auto README Generator Backend API
+README Studio Backend API
+FastAPI service compatible with local development, Docker, and Vercel Serverless Functions.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
 import re
 
-from prompts import build_readme_from_inputs
+from prompts import build_readme_from_inputs, generate_contributing, generate_license, fetch_github_repo_metadata
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Auto README Generator API",
+    title="README Studio API",
     version="1.0.0",
-    description="Generate professional README.md files automatically"
+    description="Generate professional README.md files and documentation suites automatically"
 )
 
-# Enable CORS for frontend
+# Enable CORS (standard compliant: wildcard origin without credentials)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For development; restrict in production
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -37,98 +38,112 @@ class ReadmeRequest(BaseModel):
     section_order: Optional[List[str]] = None
 
 
+class ScanRepoRequest(BaseModel):
+    repo_url: str
+
+
 # Response schema
 class ReadmeResponse(BaseModel):
     markdown: str
     metadata: dict
     additional_files: Optional[dict] = None
+    rate_limited: Optional[bool] = False
 
 
 def validate_inputs(req: ReadmeRequest) -> bool:
-    """Validate that at least one input is provided."""
-    if not req.repo_url and not req.description:
+    """Validate that at least one meaningful input is provided."""
+    if not (req.repo_url and req.repo_url.strip()) and not (req.description and req.description.strip()):
         return False
     return True
-
-
-def is_valid_github_url(url: str) -> bool:
-    """Validate GitHub URL format."""
-    github_pattern = r"https?://(?:www\.)?github\.com/[\w-]+/[\w.-]+(?:/)?$"
-    return re.match(github_pattern, url) is not None
 
 
 def clean_url(url: str) -> str:
     """Clean and normalize GitHub URL."""
     if not url:
         return ""
-    url = url.strip()
+    url = url.strip().rstrip("/")
     if url.endswith(".git"):
         url = url[:-4]
-    if url.endswith("/"):
-        url = url[:-1]
-    return url
+    return url.rstrip("/")
 
 
-@app.get("/health")
+# Create router to mount on both "/" and "/api"
+api_router = APIRouter()
+
+
+@api_router.get("/health")
 def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "service": "Auto README Generator API"}
+    return {"status": "ok", "service": "README Studio API", "version": "1.0.0"}
 
 
-@app.post("/generate-readme", response_model=ReadmeResponse)
+@api_router.post("/scan-repo")
+def scan_repository(req: ScanRepoRequest):
+    """
+    Deep scan a GitHub repository to extract tech stack, topics,
+    scripts, dependencies, stars, license, and directory tree.
+    """
+    clean_repo = clean_url(req.repo_url)
+    if not clean_repo:
+        raise HTTPException(status_code=400, detail="Invalid GitHub repository URL")
+
+    meta = fetch_github_repo_metadata(clean_repo)
+    if not meta or not meta.get("slug"):
+        raise HTTPException(
+            status_code=404,
+            detail="Repository not found, is private, or GitHub API rate limit reached."
+        )
+
+    return {
+        "success": True,
+        "repo_name": meta.get("slug", ""),
+        "full_name": meta.get("full_name", ""),
+        "description": meta.get("description", ""),
+        "detected_tech": meta.get("detected_tech", []),
+        "primary_language": meta.get("language", ""),
+        "stars": meta.get("stars", 0),
+        "forks": meta.get("forks", 0),
+        "license": meta.get("license", "MIT"),
+        "topics": meta.get("topics", []),
+        "directory_tree": meta.get("directory_tree", ""),
+        "custom_install": meta.get("custom_install"),
+        "custom_usage": meta.get("custom_usage"),
+        "custom_test": meta.get("custom_test"),
+        "rate_limited": meta.get("rate_limited", False)
+    }
+
+
+@api_router.post("/generate-readme", response_model=ReadmeResponse)
 def generate_readme(req: ReadmeRequest):
     """
-    Generate a README.md file from repository URL or project description.
-    
-    Args:
-        req: ReadmeRequest containing repo_url, description, and/or tech_stack
-    
-    Returns:
-        ReadmeResponse with generated markdown and metadata
-    
-    Raises:
-        HTTPException: If validation fails
+    Generate a README.md file and optional documentation suite
+    from a repository URL or project description.
     """
-    
-    # Validate inputs
     if not validate_inputs(req):
         raise HTTPException(
             status_code=400,
             detail="Please provide either a GitHub repository URL or a project description."
         )
-    
-    # Validate GitHub URL if provided
-    if req.repo_url:
-        req.repo_url = clean_url(req.repo_url)
-        # Note: We skip strict validation for now to allow flexibility
-        # In production, you might want stricter validation
-    
-    # Limit description length
-    if req.description and len(req.description) > 1000:
-        raise HTTPException(
-            status_code=400,
-            detail="Description must be 1000 characters or less."
-        )
-    
+
+    clean_repo_url = clean_url(req.repo_url) if req.repo_url else None
+    clean_desc = req.description.strip()[:10000] if req.description else None
+
     try:
-        # Build README from inputs
         readme_data = build_readme_from_inputs(
-            repo_url=req.repo_url,
-            description=req.description,
+            repo_url=clean_repo_url,
+            description=clean_desc,
             tech_stack_items=req.tech_stack or [],
             theme=req.theme or "default",
             section_order=req.section_order or None
         )
-        
-        # With dynamic section ordering, the formatting is pre-done in prompts.py
-        markdown = readme_data.get("dynamic_markdown", "Error generating dynamic markdown")
-        
+
+        markdown = readme_data.get("dynamic_markdown", "")
+
         additional_files = {}
         if req.generate_suite:
-            from prompts import generate_contributing, generate_license
             additional_files["CONTRIBUTING.md"] = generate_contributing(readme_data["project_name"])
             additional_files["LICENSE"] = generate_license()
-        
+
         return ReadmeResponse(
             markdown=markdown,
             metadata={
@@ -136,9 +151,10 @@ def generate_readme(req: ReadmeRequest):
                 "tech_stack": readme_data["tech_stack"],
                 "generated": True,
             },
-            additional_files=additional_files
+            additional_files=additional_files,
+            rate_limited=readme_data.get("rate_limited", False)
         )
-    
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -146,23 +162,29 @@ def generate_readme(req: ReadmeRequest):
         )
 
 
-@app.get("/")
+@api_router.get("/")
 def root():
-    """Root endpoint."""
+    """Root metadata endpoint."""
     return {
-        "message": "Auto README Generator API",
+        "message": "README Studio API",
+        "version": "1.0.0",
         "endpoints": {
-            "health": "/health",
-            "generate": "/generate-readme (POST)",
+            "health": "/health or /api/health",
+            "generate": "/generate-readme or /api/generate-readme (POST)",
             "docs": "/docs"
         }
     }
 
 
+# Mount the router both with and without /api prefix for maximum deployment flexibility
+app.include_router(api_router)
+app.include_router(api_router, prefix="/api")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        "main:app",
+        "app:app",
         host="0.0.0.0",
         port=8000,
         reload=True

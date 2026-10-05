@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import axios from 'axios'
+import SectionOrder from './SectionOrder'
 
 const TECH_STACK_OPTIONS = [
   // Frontend
@@ -43,9 +45,7 @@ const TECH_STACK_OPTIONS = [
   { id: 'azure', label: 'Azure', category: 'DevOps' },
   { id: 'vercel', label: 'Vercel', category: 'DevOps' },
   { id: 'netlify', label: 'Netlify', category: 'DevOps' },
-  { id: 'heroku', label: 'Heroku', category: 'DevOps' },
   { id: 'github-actions', label: 'GitHub Actions', category: 'DevOps' },
-  { id: 'jenkins', label: 'Jenkins', category: 'DevOps' },
 
   // Testing & Tools
   { id: 'jest', label: 'Jest', category: 'Testing' },
@@ -57,17 +57,91 @@ const TECH_STACK_OPTIONS = [
   { id: 'rest', label: 'REST API', category: 'Tools' },
 ]
 
-import SectionOrder from './SectionOrder'
+const PRESET_TEMPLATES = [
+  {
+    name: '🚀 Full-Stack SaaS',
+    desc: 'A modern full-stack web application featuring user authentication, dashboard analytics, responsive design, and database persistence.',
+    techs: ['React', 'TypeScript', 'Tailwind CSS', 'FastAPI', 'PostgreSQL', 'Docker', 'Vercel']
+  },
+  {
+    name: '🐍 Python CLI / App',
+    desc: 'A fast, developer-friendly Python command-line utility with automated testing, colored terminal output, and zero configuration.',
+    techs: ['Python', 'FastAPI', 'Pytest', 'Docker']
+  },
+  {
+    name: '⚛️ React Component Lib',
+    desc: 'An accessible, production-ready React component library with Storybook documentation and TypeScript type declarations.',
+    techs: ['React', 'TypeScript', 'Tailwind CSS', 'Vite']
+  },
+  {
+    name: '🌐 REST API Service',
+    desc: 'A high-throughput RESTful API microservice with OpenAPI Swagger documentation, rate limiting, and database caching.',
+    techs: ['FastAPI', 'Node.js', 'PostgreSQL', 'Redis', 'Docker']
+  }
+]
 
-export default function Input({ onGenerate, loading, generateSuite, setGenerateSuite, theme, setTheme, sectionOrder, setSectionOrder }) {
-  const [repoUrl, setRepoUrl] = useState('')
-  const [description, setDescription] = useState('')
-  const [selectedTechs, setSelectedTechs] = useState([])
+export default function Input({
+  onGenerate,
+  loading,
+  generateSuite,
+  setGenerateSuite,
+  theme,
+  setTheme,
+  sectionOrder,
+  setSectionOrder,
+  repoUrl,
+  setRepoUrl,
+  description,
+  setDescription,
+  selectedTechs,
+  setSelectedTechs
+}) {
   const [customTech, setCustomTech] = useState('')
+  const [activeCategory, setActiveCategory] = useState('All')
+  const [techSearch, setTechSearch] = useState('')
+  const [scanning, setScanning] = useState(false)
+  const [scanResult, setScanResult] = useState(null)
+  const [scanError, setScanError] = useState('')
 
-  const handleTechChange = (tech) => {
+  const handleScanRepo = async () => {
+    if (!repoUrl || !repoUrl.trim()) return
+    setScanning(true)
+    setScanError('')
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || ''
+      const endpoint = apiBase ? `${apiBase}/api/scan-repo` : '/api/scan-repo'
+      const response = await axios.post(endpoint, { repo_url: repoUrl.trim() })
+      if (response.data && response.data.success) {
+        const data = response.data
+        setScanResult(data)
+        if (!description && data.description) {
+          setDescription(data.description)
+        }
+        if (data.detected_tech && Array.isArray(data.detected_tech)) {
+          setSelectedTechs((prev) => Array.from(new Set([...prev, ...data.detected_tech])))
+        }
+      }
+    } catch (err) {
+      console.warn('Scan repo API error:', err)
+      const isConnError = err.code === 'ERR_NETWORK' || err.message?.includes('Network Error') || (err.response?.status === 500 && !err.response?.data?.detail)
+      const detail = err.response?.data?.detail
+      if (detail) {
+        setScanError(detail)
+      } else if (isConnError) {
+        setScanError('Backend server is not reachable. Please ensure the Python backend is running on port 8000.')
+      } else {
+        setScanError('Failed to scan repository. Please verify the URL.')
+      }
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  const categories = ['All', 'Frontend', 'Backend', 'Database', 'DevOps', 'Testing', 'Tools']
+
+  const handleTechToggle = (techLabel) => {
     setSelectedTechs((prev) =>
-      prev.includes(tech) ? prev.filter((t) => t !== tech) : [...prev, tech]
+      prev.includes(techLabel) ? prev.filter((t) => t !== techLabel) : [...prev, techLabel]
     )
   }
 
@@ -78,12 +152,23 @@ export default function Input({ onGenerate, loading, generateSuite, setGenerateS
     }
   }
 
-  const handleRemoveCustomTech = (tech) => {
-    const isCustom = !TECH_STACK_OPTIONS.some((t) => t.label === tech)
-    if (isCustom) {
-      setSelectedTechs((prev) => prev.filter((t) => t !== tech))
-    } else {
-      handleTechChange(tech)
+  const handleRemoveTech = (tech) => {
+    setSelectedTechs((prev) => prev.filter((t) => t !== tech))
+  }
+
+  const handleApplyPreset = (preset) => {
+    if (loading) return
+    const drawerBody = document.querySelector('.drawer-body')
+    const savedTop = drawerBody ? drawerBody.scrollTop : 0
+    setDescription(preset.desc)
+    setSelectedTechs(preset.techs)
+    if (drawerBody) {
+      window.requestAnimationFrame(() => {
+        drawerBody.scrollTop = savedTop
+      })
+      setTimeout(() => {
+        if (drawerBody) drawerBody.scrollTop = savedTop
+      }, 50)
     }
   }
 
@@ -92,190 +177,316 @@ export default function Input({ onGenerate, loading, generateSuite, setGenerateS
     onGenerate(repoUrl, description, selectedTechs)
   }
 
-  const categories = [...new Set(TECH_STACK_OPTIONS.map((t) => t.category))]
+  // Filter tech stack options based on category and search query
+  const filteredTechs = useMemo(() => {
+    return TECH_STACK_OPTIONS.filter((item) => {
+      const matchesCategory = activeCategory === 'All' || item.category === activeCategory
+      const matchesSearch = techSearch
+        ? item.label.toLowerCase().includes(techSearch.toLowerCase())
+        : true
+      return matchesCategory && matchesSearch
+    })
+  }, [activeCategory, techSearch])
 
   return (
-    <section className="input-section">
-      <form onSubmit={handleSubmit} className="form">
-        {/* GitHub URL Input */}
-        <div className="form-group">
-          <label htmlFor="repo-url">GitHub Repository URL (optional)</label>
-          <input
-            id="repo-url"
-            type="url"
-            placeholder="https://github.com/username/repository"
-            value={repoUrl}
-            onChange={(e) => setRepoUrl(e.target.value)}
-            disabled={loading}
-          />
-          <small>Paste the URL to your GitHub repository</small>
+    <div className="generator-config-wrapper">
+      <form onSubmit={handleSubmit} className="generator-form">
+        {/* ==================== 1. QUICK PRESETS ==================== */}
+        <div className="config-card">
+          <div className="config-card-header">
+            <span className="material-symbols-outlined card-header-icon text-amber">bolt</span>
+            <span className="config-card-title">Quick Presets</span>
+          </div>
+          <div className="preset-chips-grid">
+            {PRESET_TEMPLATES.map((p) => (
+              <button
+                key={p.name}
+                type="button"
+                className="preset-chip"
+                onClick={() => handleApplyPreset(p)}
+                disabled={loading}
+                title={p.desc}
+              >
+                <span>{p.name}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Description Textarea */}
-        <div className="form-group">
-          <label htmlFor="description">Project Description (optional)</label>
-          <textarea
-            id="description"
-            placeholder="Describe your project in a few sentences... e.g., 'A web app that generates README files automatically using AI'"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={4}
-            disabled={loading}
-          />
-          <small>Or describe what your project does</small>
-        </div>
+        {/* ==================== 2. REPO URL & DESCRIPTION ==================== */}
+        <div className="config-card">
+          <div className="config-card-header">
+            <span className="material-symbols-outlined card-header-icon text-secondary">source</span>
+            <span className="config-card-title">Project Context</span>
+          </div>
+          <p className="config-card-subtitle">
+            Provide a GitHub URL, a project description, or both.
+          </p>
 
-        {/* Tech Stack Checkboxes */}
-        <div className="form-group">
-          <label>Tech Stack (optional)</label>
-          <div className="tech-stack-container">
-            <div className="tech-stack-grid">
-              {categories.map((category) => (
-                <div key={category} className="tech-category">
-                  <h4>{category}</h4>
-                  {TECH_STACK_OPTIONS.filter((t) => t.category === category).map(
-                    (tech) => (
-                      <label key={tech.id} className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={selectedTechs.includes(tech.label)}
-                          onChange={() => handleTechChange(tech.label)}
-                          disabled={loading}
-                        />
-                        <span>{tech.label}</span>
-                      </label>
-                    )
-                  )}
-                </div>
-              ))}
+          <div className="form-field">
+            <div className="field-label-row">
+              <label className="field-label" htmlFor="repo-url">
+                GitHub Repository URL
+              </label>
+              {repoUrl && repoUrl.trim() && (
+                <button
+                  type="button"
+                  className={`btn-scan-repo ${scanning ? 'scanning' : ''}`}
+                  onClick={handleScanRepo}
+                  disabled={scanning || loading}
+                  title="Deep scan repository for dependencies, languages, and structure"
+                >
+                  <span className={`material-symbols-outlined icon-xs ${scanning ? 'spin-icon' : ''}`}>
+                    {scanning ? 'sync' : 'radar'}
+                  </span>
+                  <span>{scanning ? 'Scanning...' : 'Scan & Auto-Detect'}</span>
+                </button>
+              )}
             </div>
+            <div className="input-with-icon">
+              <span className="material-symbols-outlined input-prefix-icon">link</span>
+              <input
+                id="repo-url"
+                type="url"
+                className="ide-input"
+                placeholder="https://github.com/username/repository"
+                value={repoUrl}
+                onChange={(e) => {
+                  setRepoUrl(e.target.value)
+                  if (scanResult) setScanResult(null)
+                  if (scanError) setScanError('')
+                }}
+                disabled={loading}
+              />
+            </div>
+            <span className="field-hint">Extracts topics, languages, licenses & file structure</span>
+
+            {/* AST Scan Result Card */}
+            {scanResult && (
+              <div className="ast-scan-result-card">
+                <div className="ast-card-header">
+                  <span className="material-symbols-outlined text-primary icon-xs">verified</span>
+                  <span className="ast-repo-name truncate">{scanResult.full_name || scanResult.repo_name}</span>
+                  <span className="ast-stat-pill">⭐ {scanResult.stars}</span>
+                  <span className="ast-stat-pill">{scanResult.license}</span>
+                </div>
+                {scanResult.detected_tech && scanResult.detected_tech.length > 0 && (
+                  <div className="ast-detected-techs">
+                    <span className="ast-detected-label">Detected Tech Stack:</span>
+                    <div className="ast-chips-row">
+                      {scanResult.detected_tech.map((t) => (
+                        <span key={t} className="ast-tech-chip">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {scanError && (
+              <div className="ast-error-note">
+                <span className="material-symbols-outlined icon-xs text-amber">info</span>
+                <span>{scanError}</span>
+              </div>
+            )}
           </div>
 
-          {/* Custom Tech Stack Input */}
-          <div className="custom-tech-section">
-            <div className="custom-tech-input-group">
+          <div className="form-field">
+            <label className="field-label" htmlFor="description">
+              Project Description / Focus
+            </label>
+            <textarea
+              id="description"
+              className="ide-textarea custom-scrollbar"
+              placeholder="Describe your project, CLI commands, key features, or architectural notes..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              disabled={loading}
+            />
+            <span className="field-hint">Used to infer features, installation steps & overview</span>
+          </div>
+        </div>
+
+        {/* ==================== 3. TECH STACK (REBUILT CLEAN PILLS) ==================== */}
+        <div className="config-card">
+          <div className="config-card-header">
+            <div className="header-left">
+              <span className="material-symbols-outlined card-header-icon text-primary">layers</span>
+              <span className="config-card-title">Tech Stack</span>
+            </div>
+            {selectedTechs.length > 0 && (
+              <span className="selected-count-badge">
+                {selectedTechs.length} Selected
+              </span>
+            )}
+          </div>
+
+          {/* Active Selected Tags Tray */}
+          {selectedTechs.length > 0 && (
+            <div className="selected-tags-tray custom-scrollbar">
+              {selectedTechs.map((tech) => (
+                <span key={tech} className="selected-tag-pill">
+                  <span>{tech}</span>
+                  <button
+                    type="button"
+                    className="remove-tag-btn"
+                    onClick={() => handleRemoveTech(tech)}
+                    title={`Remove ${tech}`}
+                    disabled={loading}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <button
+                type="button"
+                className="clear-all-tags-btn"
+                onClick={() => setSelectedTechs([])}
+                title="Clear all selected"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+
+          {/* Category Filter Tabs */}
+          <div className="tech-category-tabs custom-scrollbar">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                className={`category-tab-pill ${activeCategory === cat ? 'active' : ''}`}
+                onClick={() => setActiveCategory(cat)}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {/* Search or Custom Add Field */}
+          <div className="tech-add-bar">
+            <div className="input-with-icon mini">
+              <span className="material-symbols-outlined input-prefix-icon">search</span>
               <input
                 type="text"
-                placeholder="Add custom tech (e.g., 'Oracle DB', 'Microservices')"
-                value={customTech}
-                onChange={(e) => setCustomTech(e.target.value)}
-                onKeyPress={(e) => {
+                className="ide-input mini"
+                placeholder="Filter or type custom tech..."
+                value={customTech || techSearch}
+                onChange={(e) => {
+                  setTechSearch(e.target.value)
+                  setCustomTech(e.target.value)
+                }}
+                onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
                     handleAddCustomTech()
                   }
                 }}
                 disabled={loading}
-                maxLength={30}
               />
+            </div>
+            {customTech.trim() && (
               <button
                 type="button"
-                className="btn-add-tech"
+                className="btn-add-pill"
                 onClick={handleAddCustomTech}
-                disabled={loading || !customTech.trim()}
+                disabled={loading}
               >
                 + Add
               </button>
-            </div>
-
-            {/* Display Selected Tech (including custom) */}
-            {selectedTechs.length > 0 && (
-              <div className="selected-techs">
-                <label className="selected-label">Selected Technologies ({selectedTechs.length}):</label>
-                <div className="tech-badges">
-                  {selectedTechs.map((tech) => {
-                    const isCustom = !TECH_STACK_OPTIONS.some((t) => t.label === tech)
-                    return (
-                      <div key={tech} className={`tech-badge ${isCustom ? 'custom' : 'predefined'}`}>
-                        <span>{tech}</span>
-                        <button
-                          type="button"
-                          className="remove-badge"
-                          onClick={() => handleRemoveCustomTech(tech)}
-                          title="Remove"
-                          disabled={loading}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
             )}
           </div>
-          <small>Select from predefined options or add your own technologies</small>
+
+          {/* Interactive Clickable Tech Pills (NOT raw naked checkboxes) */}
+          <div className="tech-chips-wall custom-scrollbar">
+            {filteredTechs.map((item) => {
+              const isSelected = selectedTechs.includes(item.label)
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`tech-chip-toggle ${isSelected ? 'selected' : ''}`}
+                  onClick={() => handleTechToggle(item.label)}
+                  disabled={loading}
+                >
+                  <span className="chip-indicator">
+                    {isSelected ? '✓' : '+'}
+                  </span>
+                  <span>{item.label}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
-        {/* Theme Selector */}
-        <div className="form-group">
-          <label htmlFor="theme-select">Readme Theme</label>
-          <select
-            id="theme-select"
-            value={theme}
-            onChange={(e) => setTheme(e.target.value)}
-            disabled={loading}
-            style={{
-              padding: '0.875rem 1rem',
-              border: '1px solid var(--border-color)',
-              borderRadius: 'var(--radius-sm)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.95rem',
-              backgroundColor: 'var(--bg-input)',
-              color: 'var(--text-primary)',
-              width: '100%'
-            }}
-          >
-            <option value="default">Default (Professional & Detailed)</option>
-            <option value="minimalist">Minimalist (Clean & Straightforward)</option>
-            <option value="hacker">Hacker (Terminal/ASCII Aesthetic)</option>
-          </select>
-        </div>
+        {/* ==================== 4. THEME & SECTION ORDER ==================== */}
+        <div className="config-card">
+          <div className="config-card-header">
+            <span className="material-symbols-outlined card-header-icon text-secondary">palette</span>
+            <span className="config-card-title">Output Style & Sections</span>
+          </div>
 
-        {/* Section Order Drag & Drop */}
-        <SectionOrder
-          sectionOrder={sectionOrder}
-          setSectionOrder={setSectionOrder}
-          disabled={loading}
-        />
-
-        {/* Doc Pack Toggle */}
-        <div className="form-group doc-pack-toggle">
-          <label className="checkbox-label" style={{ padding: '1rem', background: 'var(--bg-input)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <input
-              type="checkbox"
-              checked={generateSuite}
-              onChange={(e) => setGenerateSuite(e.target.checked)}
+          {/* Readme Theme Select */}
+          <div className="form-field">
+            <label className="field-label" htmlFor="theme-select">Markdown Template Style</label>
+            <select
+              id="theme-select"
+              className="ide-select"
+              value={theme}
+              onChange={(e) => setTheme(e.target.value)}
               disabled={loading}
-              style={{ width: '24px', height: '24px' }}
-            />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <span style={{ fontWeight: '600', fontSize: '1rem', color: 'var(--text-accent)' }}>Enable "Doc Pack" (Multi-File)</span>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Generates README.md, CONTRIBUTING.md, and LICENSE</span>
-            </div>
-          </label>
+            >
+              <option value="default">Default — Comprehensive & Professional</option>
+              <option value="minimalist">Minimalist — Clean, Compact & Direct</option>
+              <option value="hacker">Hacker — Terminal & ASCII Aesthetic</option>
+            </select>
+          </div>
+
+          {/* Section Order Accordion */}
+          <SectionOrder
+            sectionOrder={sectionOrder}
+            setSectionOrder={setSectionOrder}
+            disabled={loading}
+          />
+
+          {/* Doc Pack Toggle Card */}
+          <div className="doc-pack-card">
+            <label className="doc-pack-label">
+              <input
+                type="checkbox"
+                className="doc-pack-checkbox"
+                checked={generateSuite}
+                onChange={(e) => setGenerateSuite(e.target.checked)}
+                disabled={loading}
+              />
+              <div className="doc-pack-info">
+                <span className="doc-pack-title">Multi-File Documentation Pack</span>
+                <span className="doc-pack-sub">Generates README.md, CONTRIBUTING.md, and LICENSE</span>
+              </div>
+            </label>
+          </div>
         </div>
 
-        {/* Submit Button */}
-        <button type="submit" className="btn btn-primary" disabled={loading} style={{ marginTop: '1rem' }}>
-          {loading ? 'Generating...' : '✨ Generate Documentation'}
-        </button>
+        {/* ==================== 5. STICKY / PROMINENT SUBMIT CTA ==================== */}
+        <div className="generator-submit-tray">
+          <button
+            type="submit"
+            className={`btn-generate-main ${loading ? 'loading' : ''}`}
+            disabled={loading}
+          >
+            <span className="material-symbols-outlined generate-btn-icon">
+              {loading ? 'sync' : 'auto_awesome'}
+            </span>
+            <span className="generate-btn-text">
+              {loading ? 'Generating Documentation...' : 'Generate Documentation'}
+            </span>
+            <kbd className="btn-shortcut-badge">Ctrl+↵</kbd>
+          </button>
+        </div>
       </form>
-
-      {/* Info Box */}
-      <div className="info-box">
-        <p>
-          <strong>Important NOTE: </strong> <br />
-          <strong>./</strong> Using this tool is used to generate a <strong>skeleton README file</strong>, so that you does not have to start from scratch. <br />
-          <strong>./</strong> It is not meant to be a complete README generator, and may not include all the sections you need. You can always edit the generated README to add more details, sections, or customize it to your liking.<br />
-          <strong>./</strong> The generated README is a starting point. Always review and customize it to ensure it accurately represents your project and includes all necessary information.<br />
-        </p>
-        <p>
-          <br />
-          <strong>Tip:</strong> Provide either a GitHub URL or a description (or both!) and
-          we'll generate a professional README for you.
-        </p>
-      </div>
-    </section>
+    </div>
   )
 }
